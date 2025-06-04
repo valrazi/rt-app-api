@@ -4,7 +4,7 @@ module.exports = {
       {
         name: 'rt-app-api:' + process.env.PORT,
         script: './app.js', // or your main entry point
-        instances: 2, // change to 'max' for clustering based on CPU cores
+        instances: 1, // change to 'max' for clustering based on CPU cores
         exec_mode: 'cluster', 
         watch: false, // set to true if you want auto-restart on file changes (dev only)
         // env: {
