@@ -17,7 +17,6 @@ module.exports = class NotificationController {
                 const deletedIds = notificationDelete.docs.map((d) => {
                     return d.data().notificationId
                 });
-                console.log(deletedIds);
 
                 // Run the OR query without 'not-in'
                 const snapshot = await notificationDb
@@ -35,8 +34,6 @@ module.exports = class NotificationController {
                         ...doc.data(),
                         createdAt: formatCreatedAt(doc.data(), 'createdAt')
                     }));
-
-
             }
             return res.status(200).json({ data })
         } catch (error) {
