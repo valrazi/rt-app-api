@@ -1,7 +1,8 @@
+require('dotenv').config()
 module.exports = {
     apps: [
       {
-        name: 'whatsapp-middleware-api',
+        name: 'rt-app-api:' + process.env.PORT,
         script: './app.js', // or your main entry point
         instances: 2, // change to 'max' for clustering based on CPU cores
         exec_mode: 'cluster', 
