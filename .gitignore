@@ -1,0 +1,6 @@
+.env
+node_modules
+logs/*
+!logs/.gitkeep
+firebase_key.json
+generate-admin.js
