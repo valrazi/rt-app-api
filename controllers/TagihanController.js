@@ -120,6 +120,9 @@ module.exports = class TagihanController {
                     }
 
                 }
+                if(!latestTagihanPaid) latestTagihanPaid = tagihan[0]
+                
+                if(!latestTagihanUnpaid) latestTagihanUnpaid = tagihan[0]
                 tagihan = [latestTagihanPaid, latestTagihanUnpaid]
             }
 
