@@ -2,7 +2,7 @@ const dayjs = require("dayjs");
 const { tagihanDb, tagihanUserDb, notificationDb, fcmTokenDb, admin } = require("../utils/firebase");
 const TagihanService = require("../services/tagihan");
 const { formatCreatedAt } = require("../utils/time");
-const sharp = require('sharp');
+// const sharp = require('sharp');
 const { create } = require("../utils/imgur");
 
 module.exports = class TagihanController {
@@ -160,21 +160,9 @@ module.exports = class TagihanController {
             let { images } = body
             images = Array.isArray(images) ? images : [images];
             const tagihan = await TagihanService.findOneById(tagihanId)
-            const buffer = Buffer.from(images[0], 'base64');
-            console.log(`Original Size: ${buffer.length} bytes`);
+           
 
-            // Process the image (resize and compress)
-            const resizedBuffer = await sharp(buffer)
-                .resize({ width: 800 }) // Resize to 800px wide, maintains aspect ratio
-                .jpeg({ quality: 70 }) // Compress with 70% JPEG quality
-                .toBuffer();
-
-
-            console.log(`Compressed Size: ${resizedBuffer.length} bytes`);
-
-            const compressedBase64 = resizedBuffer.toString('base64');
-
-            const imgLink = await create(compressedBase64)
+            const imgLink = await create(images[0])
 
             const userInfo =
             {
@@ -314,21 +302,8 @@ module.exports = class TagihanController {
             images = Array.isArray(images) ? images : [images];
 
 
-            const buffer = Buffer.from(images[0], 'base64');
-            console.log(`Original Size: ${buffer.length} bytes`);
-
-            // Process the image (resize and compress)
-            const resizedBuffer = await sharp(buffer)
-                .resize({ width: 800 }) // Resize to 800px wide, maintains aspect ratio
-                .jpeg({ quality: 70 }) // Compress with 70% JPEG quality
-                .toBuffer();
-
-
-            console.log(`Compressed Size: ${resizedBuffer.length} bytes`);
-
-            const compressedBase64 = resizedBuffer.toString('base64');
-
-            const imgLink = await create(compressedBase64)
+           
+            const imgLink = await create(images[0])
 
             const userInfo =
             {
@@ -377,7 +352,7 @@ module.exports = class TagihanController {
                     return tagihanMonth.toLowerCase() === month.toLowerCase();
                 });
             }
-            
+
             tagihan = tagihan.map((t) => {
                 t.tagihan.tagihanDate = formatCreatedAt(t.tagihan, 'tagihanDate')
                 if (t.userInfo.length) {
