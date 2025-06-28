@@ -2,6 +2,8 @@ const dayjs = require("dayjs");
 const { tagihanDb, tagihanUserDb, notificationDb, fcmTokenDb, admin } = require("../utils/firebase");
 const TagihanService = require("../services/tagihan");
 const { formatCreatedAt } = require("../utils/time");
+const sharp = require('sharp');
+const { create } = require("../utils/imgur");
 
 module.exports = class TagihanController {
     static async create(req, res) {
@@ -25,7 +27,7 @@ module.exports = class TagihanController {
                 createdAt: dayjs().toDate(),
                 type: 'created',
                 title: 'Tagihan Baru',
-                message: 'Ada tagihan baru nih, dicek dulu yuk'
+                message: `Tagihan Baru untuk bulan ${dayjs(tagihanDate).format('MMMM')} sudah terbit`
             }
 
             await notificationDb.add(payloadNotification)
@@ -73,7 +75,7 @@ module.exports = class TagihanController {
     static async findAll(req, res) {
         try {
             const { user } = req
-            let snapshot = await tagihanDb.get()
+            let snapshot = await tagihanDb.orderBy('tagihanDate', 'asc').get()
             if (snapshot.empty) {
                 return []
             }
@@ -85,17 +87,40 @@ module.exports = class TagihanController {
             }))
 
 
+
             if (user.role == 'user') {
                 snapshot = await tagihanUserDb.where('userId', '==', user.id).get()
+                tagihan = tagihan.map((t) => {
+                    return {
+                        ...t,
+                        isPaid: false
+                    }
+                })
+                let latestTagihanUnpaid;
+                let latestTagihanPaid;
+
+                let tagihanPaidIndex = -1
                 if (!snapshot.empty) {
                     snapshot.docs.forEach((d) => {
                         const data = d.data()
                         const isPaid = tagihan.findIndex((t) => t.id == data.tagihan.id)
                         if (isPaid != -1) {
-                            tagihan.splice(isPaid, 1)
+                            // tagihan.splice(isPaid, 1)
+                            tagihan[isPaid].isPaid = true
                         }
                     })
+
+                    for (const t of tagihan) {
+                        if (t.isPaid) {
+                            latestTagihanPaid = t;
+                        } else {
+                            latestTagihanUnpaid = t;
+                            break;
+                        }
+                    }
+
                 }
+                tagihan = [latestTagihanPaid, latestTagihanUnpaid]
             }
 
             return res.status(200).json({
@@ -135,16 +160,31 @@ module.exports = class TagihanController {
             let { images } = body
             images = Array.isArray(images) ? images : [images];
             const tagihan = await TagihanService.findOneById(tagihanId)
-            const userInfo = [
-                {
-                    date: dayjs().toDate(),
-                    transferProof: images,
-                    description
-                }
-            ]
+            const buffer = Buffer.from(images[0], 'base64');
+            console.log(`Original Size: ${buffer.length} bytes`);
+
+            // Process the image (resize and compress)
+            const resizedBuffer = await sharp(buffer)
+                .resize({ width: 800 }) // Resize to 800px wide, maintains aspect ratio
+                .jpeg({ quality: 70 }) // Compress with 70% JPEG quality
+                .toBuffer();
+
+
+            console.log(`Compressed Size: ${resizedBuffer.length} bytes`);
+
+            const compressedBase64 = resizedBuffer.toString('base64');
+
+            const imgLink = await create(compressedBase64)
+
+            const userInfo =
+            {
+                date: dayjs().toDate(),
+                transferProof: [imgLink],
+                description
+            }
             const payload = {
                 tagihan,
-                userInfo,
+                userInfo: [userInfo],
                 status: 'processing',
                 userId: user.id,
                 adminReply: [],
@@ -187,12 +227,16 @@ module.exports = class TagihanController {
                 return t
             })
 
+            console.log(tagihan);
             res.status(200).json({
                 data: tagihan
             })
 
         } catch (error) {
-
+            console.log(error);
+            return res.status(500).json({
+                error
+            })
         }
     }
 
@@ -245,9 +289,7 @@ module.exports = class TagihanController {
                 adminReplyPayload.note = description
             }
 
-            if (imagesAdmin.length && description) {
-                adminReply = [...adminReply, adminReplyPayload]
-            }
+            adminReply = [adminReplyPayload]
 
             await tagihanUserDb.doc(id).update({
                 status,
@@ -270,13 +312,30 @@ module.exports = class TagihanController {
             const { description } = body
             let { images } = body
             images = Array.isArray(images) ? images : [images];
+
+
+            const buffer = Buffer.from(images[0], 'base64');
+            console.log(`Original Size: ${buffer.length} bytes`);
+
+            // Process the image (resize and compress)
+            const resizedBuffer = await sharp(buffer)
+                .resize({ width: 800 }) // Resize to 800px wide, maintains aspect ratio
+                .jpeg({ quality: 70 }) // Compress with 70% JPEG quality
+                .toBuffer();
+
+
+            console.log(`Compressed Size: ${resizedBuffer.length} bytes`);
+
+            const compressedBase64 = resizedBuffer.toString('base64');
+
+            const imgLink = await create(compressedBase64)
+
             const userInfo =
             {
                 date: dayjs().toDate(),
-                transferProof: images,
+                transferProof: [imgLink],
                 description
             }
-
 
             const tagihan = await TagihanService.findTagihanUserOneById(id)
             if (!tagihan) {
@@ -301,7 +360,8 @@ module.exports = class TagihanController {
 
     static async findAllTagihanUserHistory(req, res) {
         try {
-            const { user } = req
+            const { user, query } = req
+            const { month } = query
             const statuses = ['verified'];
             let snapshot = user.role == 'user' ? await tagihanUserDb.where('status', 'in', statuses).where('userId', '==', user.id).get() : await tagihanUserDb.where('status', 'in', statuses).get()
 
@@ -311,6 +371,13 @@ module.exports = class TagihanController {
                 paidAt: formatCreatedAt(doc.data(), 'paidAt')
             }))
 
+            if (month) {
+                tagihan = tagihan.filter((t) => {
+                    const tagihanMonth = dayjs(t.tagihanDate).format('MMMM');
+                    return tagihanMonth.toLowerCase() === month.toLowerCase();
+                });
+            }
+            
             tagihan = tagihan.map((t) => {
                 t.tagihan.tagihanDate = formatCreatedAt(t.tagihan, 'tagihanDate')
                 if (t.userInfo.length) {
@@ -328,12 +395,14 @@ module.exports = class TagihanController {
                 return t
             })
 
+            console.log(tagihan);
             res.status(200).json({
                 data: tagihan
             })
 
         } catch (error) {
-
+            console.log(error);
+            res.status(500).json({ error })
         }
     }
 }
